@@ -6,6 +6,13 @@ import (
 	"log"
 )
 
+type textRange struct {
+	StartLine   int `json:"startLine"`
+	EndLine     int `json:"endLine"`
+	StartColumn int `json:"startColumn,omitempty"`
+	EtartColumn int `json:"endColumn,omitempty"`
+}
+
 func buildSqlUsingStrFormat(email string) *sql.Row {
 	sqlStatement := fmt.Sprintf("SELECT * FROM users WHERE email='%s';", email)
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+

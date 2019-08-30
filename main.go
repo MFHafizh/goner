@@ -20,13 +20,20 @@ var fset *token.FileSet
 
 func main() {
 	flag.Parse()
-	source = flag.Args()[0]
-	/*
-		vendor := regexp.MustCompile(`([\\/])?vendor([\\/])?`)
-		var packages []string
-		path := "/Users/nakama/go/src/github.com/tokopedia/feeds/..."
-		_, _ = getPackagePath(path, vendor)
-		fmt.Println(packages)
+	nFlag := flag.NArg()
+	var regex string
+	if nFlag > 1 {
+		regex = flag.Args()[1]
+	}
+	if nFlag > 0 {
+		source = flag.Args()[0]
+	}
+	/* WIP: Scan all packages
+	vendor := regexp.MustCompile(`([\\/])?vendor([\\/])?`)
+	var packages []string
+	path := "/Users/nakama/go/src/github.com/tokopedia/feeds/..."
+	_, _ = getPackagePath(path, vendor)
+	fmt.Println(packages)
 	*/
 	src, err := ioutil.ReadFile(source)
 	issue = sonarIssues{[]sonarIssue{}}
@@ -47,6 +54,10 @@ func main() {
 			checkStrConcate(n)
 		case *ast.CallExpr:
 			checkStrFormat(n)
+		case *ast.BasicLit:
+			checkRegexLiteral(n, regex)
+		case *ast.Ident:
+			checkRegexIdentifier(n, regex)
 		}
 		return true
 	})
@@ -57,7 +68,7 @@ func main() {
 	if _, err := os.Stat("/result"); os.IsNotExist(err) {
 		os.Mkdir("."+string(filepath.Separator)+"/result", os.ModePerm)
 	}
-	err = ioutil.WriteFile("result/report.json", res, 0644)
+	err = ioutil.WriteFile("result/report.json", res, os.ModePerm)
 	if err != nil {
 		panic(err)
 	}
@@ -128,7 +139,54 @@ func inStrFormat(s string) bool {
 func process(packagesPath ...string) {
 
 }
+func checkRegexIdentifier(n ast.Node, regex string) {
+	if regex == "" {
+		return
+	}
+	patterns := regexp.MustCompile(regex)
+	if ident, ok := n.(*ast.Ident); ok {
+		if patterns.MatchString(ident.Name) {
+			i := sonarIssue{
+				EngineID: "custom scanner",
+				RuleID:   "102",
+				PrimaryLocation: location{
+					Message:   "Identifier should not match this regex: " + regex,
+					FilePath:  source,
+					TextRange: textRange{StartLine: fset.Position(ident.Pos()).Line, EndLine: fset.Position(ident.End()).Line},
+				},
+				Type:          "CODE_SMELL",
+				Severity:      "MAJOR",
+				EffortMinutes: 5,
+			}
+			issue.SonarIssues = append(issue.SonarIssues, i)
+		}
+	}
 
+}
+func checkRegexLiteral(n ast.Node, regex string) {
+	if regex == "" {
+		return
+	}
+	patterns := regexp.MustCompile(regex)
+	if literal, ok := n.(*ast.BasicLit); ok {
+		if patterns.MatchString(literal.Value) {
+			i := sonarIssue{
+				EngineID: "custom scanner",
+				RuleID:   "103",
+				PrimaryLocation: location{
+					Message:   "Literal should not match this regex: " + regex,
+					FilePath:  source,
+					TextRange: textRange{StartLine: fset.Position(literal.Pos()).Line, EndLine: fset.Position(literal.End()).Line},
+				},
+				Type:          "CODE_SMELL",
+				Severity:      "MAJOR",
+				EffortMinutes: 5,
+			}
+			issue.SonarIssues = append(issue.SonarIssues, i)
+		}
+	}
+
+}
 func getPackagePath(root string, excludedPath *regexp.Regexp) ([]string, error) {
 	if strings.HasSuffix(root, "...") {
 		root = root[0 : len(root)-3]
